@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -12,6 +12,7 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const DATA_DIR = path.join(ROOT, "public", "data");
 const CACHE_DIR = path.join(ROOT, "data", "cache");
 const PAGE_SIZE = 100;
+const CHUNK_SIZE = 2000;
 const BACKOFF_MS = [6000, 15000, 30000];
 const COOLDOWN_MS = 90000;
 
@@ -176,10 +177,20 @@ async function crawlFeed({ label, category, outFile, skipIfExists }) {
 
   const items = [...map.values()].sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
   attachGenres(items, TAG_MAP);
-  const payload = { updatedAt: new Date().toISOString(), source: "steam", count: items.length, games: items };
-  writeFileSync(path.join(DATA_DIR, outFile), JSON.stringify(payload), "utf8");
-  log(`[${label}] 完成：${items.length} 条，耗时 ${Math.round((Date.now() - startedAt) / 1000)}s -> ${outFile}`);
-  return items.length;
+  const updatedAt = new Date().toISOString();
+  const baseName = outFile.replace(".json", "");
+  const chunkCount = Math.ceil(items.length / CHUNK_SIZE);
+  for (let i = 0; i < chunkCount; i++) {
+    const chunk = items.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    writeFileSync(
+      path.join(DATA_DIR, `${baseName}.${i}.json`),
+      JSON.stringify({ updatedAt, count: chunk.length, games: chunk }),
+      "utf8"
+    );
+  }
+  if (existsSync(path.join(DATA_DIR, outFile))) rmSync(path.join(DATA_DIR, outFile));
+  log(`[${label}] 完成：${items.length} 条（${chunkCount} 块），耗时 ${Math.round((Date.now() - startedAt) / 1000)}s -> ${baseName}.*.json`);
+  return { count: items.length, chunks: chunkCount };
 }
 
 async function main() {
@@ -189,10 +200,25 @@ async function main() {
   const skipGames = process.env.SKIP_GAMES === "1";
   const skipDemos = process.env.SKIP_DEMOS === "1";
 
-  const counts = {};
-  if (!skipGames) counts.games = await crawlFeed({ label: "game", category: "998", outFile: "games.json" });
-  if (!skipDemos) counts.demos = await crawlFeed({ label: "demo", category: "10", outFile: "demos.json" });
-  const meta = { updatedAt: new Date().toISOString(), source: "steam", games: counts.games ?? 0, demos: counts.demos ?? 0 };
+  const counts = { games: 0, demos: 0, gameChunks: 0, demoChunks: 0 };
+  if (!skipGames) {
+    const r = await crawlFeed({ label: "game", category: "998", outFile: "games.json" });
+    counts.games = r.count;
+    counts.gameChunks = r.chunks;
+  }
+  if (!skipDemos) {
+    const r = await crawlFeed({ label: "demo", category: "10", outFile: "demos.json" });
+    counts.demos = r.count;
+    counts.demoChunks = r.chunks;
+  }
+  const meta = {
+    updatedAt: new Date().toISOString(),
+    source: "steam",
+    games: counts.games,
+    demos: counts.demos,
+    gameChunks: counts.gameChunks,
+    demoChunks: counts.demoChunks,
+  };
   writeFileSync(path.join(DATA_DIR, "meta.json"), JSON.stringify(meta), "utf8");
   log(`meta.json：${JSON.stringify(meta)}`);
   log("全部完成");

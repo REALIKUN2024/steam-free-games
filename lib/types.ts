@@ -25,4 +25,6 @@ export type MetaPayload = {
   source: string;
   games: number;
   demos: number;
+  gameChunks: number;
+  demoChunks: number;
 };

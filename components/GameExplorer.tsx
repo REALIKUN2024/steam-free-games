@@ -98,9 +98,12 @@ function Marquee({ games }: { games: Game[] }) {
 
 export default function GameExplorer() {
   const [meta, setMeta] = useState<MetaPayload | null>(null);
-  const [gamesPayload, setGamesPayload] = useState<GameListPayload | null>(null);
-  const [demosPayload, setDemosPayload] = useState<GameListPayload | null>(null);
-  const [loadingGames, setLoadingGames] = useState(true);
+  const [games, setGames] = useState<Game[]>([]);
+  const [gameLoaded, setGameLoaded] = useState(0);
+  const [gameTotal, setGameTotal] = useState(0);
+  const [demos, setDemos] = useState<Game[]>([]);
+  const [demoLoaded, setDemoLoaded] = useState(0);
+  const [demoTotal, setDemoTotal] = useState(0);
   const [demosError, setDemosError] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,23 +130,33 @@ export default function GameExplorer() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([
-      fetch("data/meta.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error(`meta HTTP ${r.status}`)))),
-      fetch("data/games.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error(`games HTTP ${r.status}`)))),
-    ])
-      .then(([m, g]) => {
-        if (alive) {
-          setMeta(m);
-          setGamesPayload(g);
-          setLoadingGames(false);
+    (async () => {
+      try {
+        const m = (await fetch("data/meta.json").then((r) => {
+          if (!r.ok) throw new Error(`meta HTTP ${r.status}`);
+          return r.json();
+        })) as MetaPayload;
+        if (!alive) return;
+        setMeta(m);
+        setGameTotal(m.gameChunks);
+        const all: Game[] = [];
+        for (let i = 0; i < m.gameChunks; i++) {
+          try {
+            const res = await fetch(`data/games.${i}.json`);
+            if (!res.ok) continue;
+            const d = (await res.json()) as GameListPayload;
+            if (!alive) return;
+            all.push(...d.games);
+            setGames([...all]);
+            setGameLoaded(i + 1);
+          } catch {
+            /* 跳过该块，继续 */
+          }
         }
-      })
-      .catch((e) => {
-        if (alive) {
-          setError(e.message || "未知错误");
-          setLoadingGames(false);
-        }
-      });
+      } catch (e) {
+        if (alive) setError((e as Error).message || "数据加载失败");
+      }
+    })();
     return () => {
       alive = false;
     };
@@ -162,23 +175,32 @@ export default function GameExplorer() {
   }, []);
 
   useEffect(() => {
-    if (filter !== "demo" || demosPayload || demosError) return;
+    if (filter !== "demo" || demos.length > 0 || demoTotal > 0 || demosError) return;
     let alive = true;
-    fetch("data/demos.json")
-      .then((r) => {
-        if (!r.ok) throw new Error(`试玩数据加载失败 (HTTP ${r.status})`);
-        return r.json();
-      })
-      .then((d: GameListPayload) => {
-        if (alive) setDemosPayload(d);
-      })
-      .catch(() => {
-        if (alive) setDemosError(true);
-      });
+    (async () => {
+      if (!meta) return;
+      setDemoTotal(meta.demoChunks);
+      const all: Game[] = [];
+      for (let i = 0; i < meta.demoChunks; i++) {
+        try {
+          const res = await fetch(`data/demos.${i}.json`);
+          if (!res.ok) continue;
+          const d = (await res.json()) as GameListPayload;
+          if (!alive) return;
+          all.push(...d.games);
+          setDemos([...all]);
+          setDemoLoaded(i + 1);
+        } catch {
+          /* skip */
+        }
+      }
+    })().catch(() => {
+      if (alive) setDemosError(true);
+    });
     return () => {
       alive = false;
     };
-  }, [filter, demosPayload, demosError]);
+  }, [filter, demos.length, demoTotal, demosError, meta]);
 
   const toggleFav = useCallback((id: number) => {
     setFavs((prev) => {
@@ -202,9 +224,6 @@ export default function GameExplorer() {
     copyTimer.current = setTimeout(() => setCopiedId(null), 1600);
   }, []);
 
-  const games = useMemo(() => gamesPayload?.games ?? [], [gamesPayload]);
-  const demos = useMemo(() => demosPayload?.games ?? [], [demosPayload]);
-
   const stats = useMemo(() => {
     const rated = games.filter((g) => g.rating != null);
     const avg =
@@ -219,9 +238,12 @@ export default function GameExplorer() {
   }, [games, demos, meta]);
 
   const baseList = filter === "demo" ? demos : games;
-  const loadingDemos = filter === "demo" && !demosPayload && !demosError;
-  const loading = filter === "demo" ? loadingDemos : loadingGames;
+  const loading = filter === "demo" ? demoLoaded === 0 && !demosError : gameLoaded === 0;
   const effectiveError = filter === "demo" && demosError ? "试玩数据加载失败，请稍后重试" : error;
+  const loadingProgress =
+    filter === "demo"
+      ? demoLoaded > 0 && demoLoaded < demoTotal
+      : gameLoaded > 0 && gameLoaded < gameTotal;
 
   const filtered = useMemo(() => {
     let list = baseList;
@@ -409,7 +431,15 @@ export default function GameExplorer() {
           <div className="flex items-center gap-3">
             {!loading && (
               <span className="font-mono text-[12px] text-ink-3">
-                共 {filtered.length.toLocaleString()} 款
+                {loadingProgress ? (
+                  <>
+                    已加载 {filter === "demo" ? demoLoaded : gameLoaded}/
+                    {filter === "demo" ? demoTotal : gameTotal} 块 · 已见{" "}
+                    {filtered.length.toLocaleString()} 款
+                  </>
+                ) : (
+                  <>共 {filtered.length.toLocaleString()} 款</>
+                )}
               </span>
             )}
             <label className="flex items-center gap-2">
