@@ -244,6 +244,15 @@ export default function GameExplorer() {
     filter === "demo"
       ? demoLoaded > 0 && demoLoaded < demoTotal
       : gameLoaded > 0 && gameLoaded < gameTotal;
+  const loadPct =
+    filter === "demo"
+      ? demoTotal > 0
+        ? Math.round((demoLoaded / demoTotal) * 100)
+        : 0
+      : gameTotal > 0
+        ? Math.round((gameLoaded / gameTotal) * 100)
+        : 0;
+  const notFullyLoaded = filter === "demo" ? demoLoaded < demoTotal : gameLoaded < gameTotal;
 
   const filtered = useMemo(() => {
     let list = baseList;
@@ -293,6 +302,23 @@ export default function GameExplorer() {
               Steam 喜加一
             </span>
           </a>
+
+          {notFullyLoaded && meta && (
+            <div className="flex shrink-0 flex-col gap-1 border-l border-edge pl-3">
+              <span className="hidden whitespace-nowrap text-[11px] text-ink-2 sm:block">
+                仍在加载中，请等待，可先看看已加载的游戏
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="h-1 w-20 border border-edge bg-panel-2 sm:w-40 md:w-52">
+                  <div
+                    className="h-full bg-accent transition-[width] duration-300"
+                    style={{ width: `${loadPct}%` }}
+                  />
+                </div>
+                <span className="font-mono text-[10px] text-ink-3">{loadPct}%</span>
+              </div>
+            </div>
+          )}
 
           <div className="relative ml-auto max-w-[560px] flex-1">
             <MagnifyingGlass
