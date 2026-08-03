@@ -103,9 +103,9 @@ export default function GameExplorer() {
   const [gameTotal, setGameTotal] = useState(0);
   const [demos, setDemos] = useState<Game[]>([]);
   const [demoLoaded, setDemoLoaded] = useState(0);
-  const [demoTotal, setDemoTotal] = useState(0);
   const [demosError, setDemosError] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const demoStartedRef = useRef(false);
 
   const [filter, setFilter] = useState<Filter>("game");
   const [genre, setGenre] = useState<string | null>(null);
@@ -175,11 +175,10 @@ export default function GameExplorer() {
   }, []);
 
   useEffect(() => {
-    if (filter !== "demo" || demos.length > 0 || demoTotal > 0 || demosError) return;
+    if (filter !== "demo" || demosError || demoStartedRef.current || !meta) return;
+    demoStartedRef.current = true;
     let alive = true;
     (async () => {
-      if (!meta) return;
-      setDemoTotal(meta.demoChunks);
       const all: Game[] = [];
       for (let i = 0; i < meta.demoChunks; i++) {
         try {
@@ -200,7 +199,7 @@ export default function GameExplorer() {
     return () => {
       alive = false;
     };
-  }, [filter, demos.length, demoTotal, demosError, meta]);
+  }, [filter, demosError, meta]);
 
   const toggleFav = useCallback((id: number) => {
     setFavs((prev) => {
@@ -242,17 +241,18 @@ export default function GameExplorer() {
   const effectiveError = filter === "demo" && demosError ? "试玩数据加载失败，请稍后重试" : error;
   const loadingProgress =
     filter === "demo"
-      ? demoLoaded > 0 && demoLoaded < demoTotal
+      ? demoLoaded > 0 && demoLoaded < (meta?.demoChunks ?? 0)
       : gameLoaded > 0 && gameLoaded < gameTotal;
   const loadPct =
     filter === "demo"
-      ? demoTotal > 0
-        ? Math.round((demoLoaded / demoTotal) * 100)
+      ? (meta?.demoChunks ?? 0) > 0
+        ? Math.round((demoLoaded / (meta?.demoChunks ?? 1)) * 100)
         : 0
       : gameTotal > 0
         ? Math.round((gameLoaded / gameTotal) * 100)
         : 0;
-  const notFullyLoaded = filter === "demo" ? demoLoaded < demoTotal : gameLoaded < gameTotal;
+  const notFullyLoaded =
+    filter === "demo" ? demoLoaded < (meta?.demoChunks ?? 0) : gameLoaded < gameTotal;
 
   const filtered = useMemo(() => {
     let list = baseList;
@@ -460,7 +460,7 @@ export default function GameExplorer() {
                 {loadingProgress ? (
                   <>
                     已加载 {filter === "demo" ? demoLoaded : gameLoaded}/
-                    {filter === "demo" ? demoTotal : gameTotal} 块 · 已见{" "}
+                    {filter === "demo" ? (meta?.demoChunks ?? 0) : gameTotal} 块 · 已见{" "}
                     {filtered.length.toLocaleString()} 款
                   </>
                 ) : (
