@@ -6,7 +6,6 @@ import {
   Bookmark,
   CaretDown,
   MagnifyingGlass,
-  SteamLogo,
   Trophy,
   GameController,
   ArrowsDownUp,
@@ -175,7 +174,7 @@ export default function GameExplorer() {
   }, []);
 
   useEffect(() => {
-    if (filter !== "demo" || demosError || demoStartedRef.current || !meta) return;
+    if ((filter !== "demo" && filter !== "fav") || demosError || demoStartedRef.current || !meta) return;
     demoStartedRef.current = true;
     let alive = true;
     (async () => {
@@ -236,7 +235,8 @@ export default function GameExplorer() {
     };
   }, [games, demos, meta]);
 
-  const baseList = filter === "demo" ? demos : games;
+  const favBase = useMemo(() => [...games, ...demos], [games, demos]);
+  const baseList = filter === "fav" ? favBase : filter === "demo" ? demos : games;
   const loading = filter === "demo" ? demoLoaded === 0 && !demosError : gameLoaded === 0;
   const effectiveError = filter === "demo" && demosError ? "试玩数据加载失败，请稍后重试" : error;
   const loadingProgress =
@@ -297,7 +297,8 @@ export default function GameExplorer() {
       <header className="sticky top-0 z-40 border-b border-edge bg-base/85 backdrop-blur-md">
         <div className="mx-auto flex max-w-[1400px] items-center gap-4 px-4 py-3 md:px-6">
           <a href="#top" className="flex shrink-0 items-center gap-2">
-            <SteamLogo size={26} weight="fill" className="text-accent" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="steam.png" alt="Steam 喜加一" className="h-6 w-6 object-contain" />
             <span className="hidden text-[15px] font-semibold tracking-tight sm:block">
               Steam 喜加一
             </span>

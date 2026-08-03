@@ -8,7 +8,6 @@ export const metadata: Metadata = {
   description:
     "实时汇总 Steam 当前所有可免费入库存玩的游戏，支持搜索、筛选、排序与收藏，助你不错过任何一款免费好游。",
   keywords: ["Steam", "喜加一", "免费游戏", "免费游玩", "Free to Play"],
-  icons: { icon: "/favicon.ico" },
 };
 
 export const viewport: Viewport = {

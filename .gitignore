@@ -39,6 +39,9 @@ yarn-error.log*
 # build logs
 /data/*.log
 
+# local video production workspace
+/video/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
