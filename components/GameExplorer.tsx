@@ -400,6 +400,14 @@ export default function GameExplorer() {
                   {favs.size > 0 ? `(${favs.size})` : ""}
                 </span>
               </MagneticButton>
+              <a
+                href="https://realikun2024.github.io/steam-discount/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="flex items-center gap-2 border-2 border-warn/60 bg-warn/15 px-6 py-3 text-[15px] font-bold text-warn transition-colors hover:bg-warn/25"
+              >
+                折扣专区
+              </a>
             </div>
           </div>
 
